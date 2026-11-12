@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Аналитика и SLA — IT Service Desk{% endblock %}
+
+{% block head %}
+<style>
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 14px;
+        margin-bottom: 20px;
+    }
+    .kpi-card { padding: 16px 18px; }
+    .kpi-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+    .kpi-value { font-size: 26px; font-weight: 700; margin-top: 6px; letter-spacing: -0.02em; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+    .bar-track {
+        width: 100%;
+        height: 6px;
+        background: var(--surface-subtle);
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: 6px;
+    }
+    .bar-fill { height: 100%; background: var(--primary); border-radius: 999px; }
+    @media (max-width: 960px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        .two-col { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Аналитика работы IT-службы</h1>
+        <p class="page-subtitle">Сводные показатели соблюдения SLA и распределение нагрузки по инженерам</p>
+    </div>
+</div>
+
+<div class="kpi-grid">
+    <div class="card kpi-card">
+        <div class="kpi-label">Всего заявок</div>
+        <div class="kpi-value">{{ stats.total_tickets }}</div>
+    </div>
+    <div class="card kpi-card">
+        <div class="kpi-label">Открытые</div>
+        <div class="kpi-value" style="color: var(--primary);">{{ stats.open_tickets }}</div>
+    </div>
+    <div class="card kpi-card">
+        <div class="kpi-label">Просрочено SLA</div>
+        <div class="kpi-value" style="color: var(--danger);">{{ stats.overdue_tickets }}</div>
+    </div>
+    <div class="card kpi-card">
+        <div class="kpi-label">Соблюдение SLA</div>
+        <div class="kpi-value" style="color: var(--success);">{{ stats.sla_compliance_rate }}%</div>
+    </div>
+    <div class="card kpi-card">
+        <div class="kpi-label">Среднее решение</div>
+        <div class="kpi-value">{{ stats.avg_resolution_hours if stats.avg_resolution_hours is not none else "—" }} <span style="font-size: 14px; font-weight: 500; color: var(--text-muted);">ч.</span></div>
+    </div>
+</div>
+
+<div class="two-col">
+    <div class="card">
+        <div class="card-header">Распределение по статусам</div>
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 14px;">
+            {% for row in by_status %}
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                    <span style="font-weight: 500;">{{ row.label }}</span>
+                    <span class="mono" style="color: var(--text-muted);">{{ row.count }} ({{ row.percent }}%)</span>
+                </div>
+                <div class="bar-track"><div class="bar-fill" data-width="{{ row.percent }}"></div></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Распределение по приоритетам</div>
+        <div class="card-body" style="display: flex; flex-direction: column; gap: 14px;">
+            {% for row in by_priority %}
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                    <span style="display: inline-flex; align-items: center; gap: 7px; font-weight: 500;">
+                        <span class="prio-dot prio-{{ row.key }}"></span>
+                        {{ row.label }} <span style="color: var(--text-muted); font-weight: 400;">(SLA {{ row.sla_hours }} ч.)</span>
+                    </span>
+                    <span class="mono" style="color: var(--text-muted);">{{ row.count }} ({{ row.percent }}%)</span>
+                </div>
+                <div class="bar-track"><div class="bar-fill" data-width="{{ row.percent }}"></div></div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 18px;">
+    <div class="card-header">Нагрузка и KPI инженеров</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Сотрудник</th>
+                    <th>Всего назначено</th>
+                    <th>В работе</th>
+                    <th>Решено / Закрыто</th>
+                    <th>Просрочки SLA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in by_agent %}
+                <tr>
+                    <td>
+                        <span class="avatar-chip">
+                            <span class="avatar-circle">{{ row.user.full_name[0] }}</span>
+                            <strong>{{ row.user.full_name }}</strong>
+                        </span>
+                    </td>
+                    <td class="mono">{{ row.total }}</td>
+                    <td class="mono">{{ row.active }}</td>
+                    <td class="mono" style="color: var(--success); font-weight: 600;">{{ row.resolved }}</td>
+                    <td class="mono">
+                        {% if row.overdue > 0 %}
+                        <span class="badge badge-overdue">{{ row.overdue }}</span>
+                        {% else %}
+                        <span style="color: var(--text-muted);">0</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Журнал последних событий системы</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 130px;">Время</th>
+                    <th style="width: 110px;">Заявка</th>
+                    <th>Событие</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in recent_history %}
+                <tr>
+                    <td class="mono" style="color: var(--text-muted);">{{ h.created_at.strftime('%d.%m %H:%M') }}</td>
+                    <td class="mono"><a href="/tickets/{{ h.ticket_id }}">#{{ h.ticket_id }}</a></td>
+                    <td>{{ h.action }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<script>
+    document.querySelectorAll('.bar-fill').forEach(el => {
+        el.style.width = el.dataset.width + '%';
+    });
+</script>
+{% endblock %}

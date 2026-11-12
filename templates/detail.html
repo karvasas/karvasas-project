@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}#{{ ticket.id }} {{ ticket.title }} — Service Desk{% endblock %}
+
+{% block head %}
+<style>
+    .detail-layout {
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        gap: 20px;
+        align-items: start;
+    }
+    .meta-list { display: flex; flex-direction: column; gap: 12px; }
+    .meta-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+    }
+    .meta-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .meta-key { color: var(--text-muted); }
+    .meta-val { font-weight: 500; text-align: right; }
+
+    .comment-item {
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: #ffffff;
+        margin-bottom: 12px;
+    }
+    .comment-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--surface-subtle);
+        font-size: 12.5px;
+    }
+    .timeline { list-style: none; padding: 0; margin: 0; }
+    .timeline li {
+        position: relative;
+        padding-left: 18px;
+        padding-bottom: 14px;
+        border-left: 2px solid var(--border);
+        font-size: 12.5px;
+    }
+    .timeline li:last-child { border-left-color: transparent; padding-bottom: 0; }
+    .timeline li::before {
+        content: "";
+        position: absolute;
+        left: -5px;
+        top: 4px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--primary);
+    }
+    .att-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: #f8fafc;
+        color: var(--text);
+        font-size: 12.5px;
+        font-weight: 500;
+        text-decoration: none !important;
+    }
+    .att-pill:hover { border-color: var(--primary); color: var(--primary); }
+    @media (max-width: 920px) { .detail-layout { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
+            <a href="/" style="color: var(--text-muted); font-size: 13px;">← Все заявки</a>
+            <span style="color: var(--border-strong);">/</span>
+            <span class="mono" style="color: var(--text-muted);">TICKET-{{ ticket.id }}</span>
+        </div>
+        <h1 class="page-title">{{ ticket.title }}</h1>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="badge status-{{ ticket.status }}" style="font-size: 13px; padding: 4px 12px;">{{ status_labels[ticket.status] }}</span>
+        {% if ticket.is_overdue %}
+            <span class="badge badge-overdue" style="font-size: 13px; padding: 4px 12px;">SLA ПРОСРОЧЕН</span>
+        {% else %}
+            <span class="badge badge-ok" style="font-size: 13px; padding: 4px 12px;">SLA в норме</span>
+        {% endif %}
+    </div>
+</div>
+
+<div class="detail-layout">
+    <!-- Левая колонка: Описание, файлы, обсуждение -->
+    <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div class="card">
+            <div class="card-header">
+                <span class="avatar-chip">
+                    <span class="avatar-circle">{{ ticket.creator.full_name[0] }}</span>
+                    <span>{{ ticket.creator.full_name }}</span>
+                </span>
+                <span class="mono" style="color: var(--text-muted); font-weight: 400;">
+                    {{ ticket.created_at.strftime('%d.%m.%Y %H:%M') }}
+                </span>
+            </div>
+            <div class="card-body">
+                <div style="white-space: pre-wrap; color: #1e293b; font-size: 14px;">{{ ticket.description }}</div>
+
+                <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);">
+                    <div style="font-size: 12.5px; font-weight: 600; color: var(--text-muted); margin-bottom: 10px;">
+                        Вложения ({{ ticket.attachments|length }})
+                    </div>
+
+                    {% if ticket.attachments %}
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                        {% for att in ticket.attachments %}
+                        <a href="/attachments/{{ att.id }}/download" class="att-pill">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                            <span>{{ att.filename }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <form action="/tickets/{{ ticket.id }}/attachments" method="post" enctype="multipart/form-data" style="display: flex; gap: 8px; align-items: center; max-width: 460px;">
+                        <input type="file" name="files" multiple required style="font-size: 12.5px;">
+                        <button type="submit" class="btn btn-sm">Загрузить</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Комментарии -->
+        <div>
+            <h3 style="font-size: 15px; margin: 0 0 12px;">Комментарии ({{ ticket.comments|length }})</h3>
+
+            {% for c in ticket.comments %}
+            <div class="comment-item">
+                <div class="comment-head">
+                    <span class="avatar-chip">
+                        <span class="avatar-circle">{{ c.user.full_name[0] }}</span>
+                        <strong>{{ c.user.full_name }}</strong>
+                    </span>
+                    <span class="mono" style="color: var(--text-muted);">{{ c.created_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                </div>
+                <div style="white-space: pre-wrap;">{{ c.text }}</div>
+            </div>
+            {% endfor %}
+
+            <div class="card">
+                <div class="card-body">
+                    <form action="/tickets/{{ ticket.id }}/comments" method="post">
+                        <label class="field-label">Добавить комментарий</label>
+                        <textarea name="text" rows="3" required placeholder="Напишите ответ или техническую заметку..." style="margin-bottom: 10px;"></textarea>
+                        <div style="display: flex; justify-content: flex-end;">
+                            <button type="submit" class="btn btn-primary">Отправить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Правая колонка: Сайдбар управления -->
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card">
+            <div class="card-header">Действия (State Machine)</div>
+            <div class="card-body">
+                {% set ns = namespace(shown=0) %}
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    {% for act in available_actions %}
+                        {% if current_user.role != 'client' or act.event in ['close_ticket', 'reopen'] %}
+                        {% set ns.shown = ns.shown + 1 %}
+                        <form action="/tickets/{{ ticket.id }}/transition" method="post" style="margin: 0;">
+                            <input type="hidden" name="event" value="{{ act.event }}">
+                            <button type="submit" class="btn {{ act.style }}" style="width: 100%;" {% if act.requires_assignee %}title="Сначала назначьте исполнителя"{% endif %}>
+                                {{ act.label }}
+                            </button>
+                        </form>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% if ns.shown == 0 %}
+                <p style="margin: 0; color: var(--text-muted); font-size: 13px;">Нет доступных переходов для вашей роли.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Детали заявки</div>
+            <div class="card-body">
+                <div style="margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border);">
+                    <label class="field-label">Исполнитель</label>
+                    {% if current_user.role != 'client' %}
+                    <form action="/tickets/{{ ticket.id }}/assign" method="post" style="display: flex; gap: 6px;">
+                        <select name="assignee_id">
+                            <option value="">Не назначен</option>
+                            {% for a in agents %}
+                            <option value="{{ a.id }}" {% if ticket.assignee_id == a.id %}selected{% endif %}>{{ a.full_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn">ОК</button>
+                    </form>
+                    {% else %}
+                    <div style="font-weight: 500;">{{ ticket.assignee.full_name if ticket.assignee else "Ожидает назначения инженера" }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="meta-list">
+                    <div class="meta-item">
+                        <span class="meta-key">Категория</span>
+                        <span class="meta-val">{{ ticket.category }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-key">Приоритет</span>
+                        <span class="meta-val" style="display: inline-flex; align-items: center; gap: 6px;">
+                            <span class="prio-dot prio-{{ ticket.priority }}"></span>
+                            {{ priorities[ticket.priority].label }}
+                        </span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-key">SLA дедлайн</span>
+                        <span class="meta-val mono">{{ ticket.sla_deadline.strftime('%d.%m.%Y %H:%M') }}</span>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-key">Обновлена</span>
+                        <span class="meta-val mono">{{ ticket.updated_at.strftime('%d.%m.%Y %H:%M') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">История изменений</div>
+            <div class="card-body" style="max-height: 360px; overflow-y: auto;">
+                <ul class="timeline">
+                    {% for h in ticket.history %}
+                    <li>
+                        <div class="mono" style="font-size: 11px; color: var(--text-muted);">
+                            {{ h.created_at.strftime('%d.%m %H:%M') }} · {{ h.user.full_name if h.user else 'SLA Monitor' }}
+                        </div>
+                        <div style="color: #334155; margin-top: 2px;">{{ h.action }}</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

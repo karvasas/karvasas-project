@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Заявки — IT Service Desk{% endblock %}
+
+{% block head %}
+<style>
+    .filter-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    .filter-row-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .filter-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .filter-actions { display: flex; align-items: center; gap: 8px; }
+    .ticket-link { color: var(--text); font-weight: 600; }
+    .ticket-link:hover { color: var(--primary); text-decoration: none; }
+    .meta-counters {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: 8px;
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+    .meta-counter { display: inline-flex; align-items: center; gap: 3px; }
+    @media (max-width: 900px) { .filter-grid { grid-template-columns: 1fr 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Реестр обращений</h1>
+        <p class="page-subtitle">Управление инцидентами, запросами на обслуживание и контроль SLA</p>
+    </div>
+    <a href="/tickets/create" class="btn btn-primary">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Новая заявка
+    </a>
+</div>
+
+<div class="card" style="margin-bottom: 16px;">
+    <div class="card-body" style="padding: 14px 16px;">
+        <form method="get" action="/">
+            <div class="filter-grid">
+                <input type="search" name="q" placeholder="Поиск по теме или описанию..." value="{{ filters.q }}">
+                <select name="status">
+                    <option value="">Все статусы</option>
+                    {% for key, label in status_labels.items() %}
+                    <option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <select name="priority">
+                    <option value="">Все приоритеты</option>
+                    {% for key, meta in priorities.items() %}
+                    <option value="{{ key }}" {% if filters.priority == key %}selected{% endif %}>{{ meta.label }}</option>
+                    {% endfor %}
+                </select>
+                <select name="category">
+                    <option value="">Все категории</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-row-bottom">
+                <div class="filter-left">
+                    <select name="assignee_id" style="width: 220px;">
+                        <option value="">Любой исполнитель</option>
+                        <option value="unassigned" {% if filters.assignee_id == 'unassigned' %}selected{% endif %}>Не назначен</option>
+                        {% for a in agents %}
+                        <option value="{{ a.id }}" {% if filters.assignee_id == a.id|string %}selected{% endif %}>{{ a.full_name }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label style="display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: #334155; cursor: pointer; user-select: none;">
+                        <input type="checkbox" name="overdue" value="1" {% if filters.overdue == '1' %}checked{% endif %} style="margin: 0; accent-color: var(--danger);">
+                        Только просроченные SLA
+                    </label>
+                </div>
+
+                <div class="filter-actions">
+                    <button type="submit" class="btn btn-primary">Применить</button>
+                    <button type="button" class="btn" onclick="window.location.href='/'">Сбросить</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 72px;">ID</th>
+                    <th>Тема обращения</th>
+                    <th>Категория</th>
+                    <th>Приоритет</th>
+                    <th>Статус</th>
+                    <th>Исполнитель</th>
+                    <th>Дедлайн SLA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tickets %}
+                <tr>
+                    <td class="mono" style="color: var(--text-muted);">#{{ t.id }}</td>
+                    <td>
+                        <a href="/tickets/{{ t.id }}" class="ticket-link">{{ t.title }}</a>
+                        {% if t.attachments or t.comments %}
+                        <span class="meta-counters">
+                            {% if t.attachments %}
+                            <span class="meta-counter" title="Вложения">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                                {{ t.attachments|length }}
+                            </span>
+                            {% endif %}
+                            {% if t.comments %}
+                            <span class="meta-counter" title="Комментарии">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                {{ t.comments|length }}
+                            </span>
+                            {% endif %}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td style="color: #475569;">{{ t.category }}</td>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px;">
+                            <span class="prio-dot prio-{{ t.priority }}"></span>
+                            {{ priorities[t.priority].label }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge status-{{ t.status }}">{{ status_labels[t.status] }}</span>
+                    </td>
+                    <td>
+                        {% if t.assignee %}
+                        <span class="avatar-chip">
+                            <span class="avatar-circle">{{ t.assignee.full_name[0] }}</span>
+                            <span>{{ t.assignee.full_name }}</span>
+                        </span>
+                        {% else %}
+                        <span style="color: var(--text-muted);">Не назначен</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span class="mono" style="color: #334155;">{{ t.sla_deadline.strftime('%d.%m %H:%M') }}</span>
+                            {% if t.is_overdue %}
+                            <span class="badge badge-overdue">Просрочен</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 36px; color: var(--text-muted);">
+                        Заявки по заданным критериям не найдены.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
