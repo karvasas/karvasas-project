@@ -14,7 +14,6 @@ scheduler = BackgroundScheduler()
 
 
 def check_sla_overdues() -> None:
-    """Фоновая задача: каждые 30 секунд проверяет активные заявки с истекшим SLA."""
     db: Session = SessionLocal()
     try:
         now = datetime.now()
@@ -57,7 +56,6 @@ def check_sla_overdues() -> None:
 
 
 def run_seed_on_startup() -> None:
-    """Автоматическое заполнение базы тестовыми данными при старте приложения."""
     db: Session = SessionLocal()
     try:
         sig = inspect.signature(seed_database)

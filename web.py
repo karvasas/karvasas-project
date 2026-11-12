@@ -42,7 +42,6 @@ def parse_optional_int(value: Optional[str]) -> Optional[int]:
 
 
 def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
-    """Определяет текущего пользователя из query-параметра, cookie или берет первого в БД."""
     raw_query_id = request.query_params.get("user_id") or request.query_params.get("switch_user")
     user_id = parse_optional_int(raw_query_id)
 
@@ -71,7 +70,6 @@ def render_template(
     context: Optional[dict] = None,
     status_code: int = 200,
 ) -> HTMLResponse:
-    """Формирует общий контекст для всех Jinja2-шаблонов."""
     all_users = db.query(User).order_by(User.id.asc()).all()
     agents = [u for u in all_users if u.role in ("agent", "admin")]
 
@@ -104,7 +102,6 @@ async def save_uploaded_files(
     actor: User,
     write_history: bool = True,
 ) -> List[Attachment]:
-    """Сохраняет загруженные файлы в uploads/ и создает записи Attachment."""
     saved_attachments: List[Attachment] = []
 
     for upload in uploaded_files:
